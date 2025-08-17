@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define TAMAÑO_PALABRA 8
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                          SEGMENTOS DE MEMORIA DE UN PROCESO                                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -41,9 +43,9 @@ typedef struct content content_t;
 typedef struct memory_block memory_block_t;
 
 struct header {
-    size_t size;
-    int *next;
-    bool is_free;
+    uint32_t size; // 4 byte
+    uint32_t *next; // 4 byte
+    uint16_t is_free; // 4 byte
 };
 
 struct content {
@@ -52,33 +54,57 @@ struct content {
 
 struct memory_block {
     header_t header;
-    content_t *content;
+    content_t content;
 };
+
+int align(size_t num_of_bytes) {
+   
+   return (num_of_bytes + TAMAÑO_PALABRA - 1) & ~(TAMAÑO_PALABRA - 1);
+}
 
 // funcion para pedir memoria
 void *alloc(size_t bytes_to_alloc) {
     // TODO
-    return NULL;
+
+    uint32_t bytes_aligned = align(bytes_to_alloc);
+
+    void *current = sbrk(0);
+
+    sbrk(bytes_aligned);
+
+    return current;
 }
 
 
 // funcion para devolver memoria
 void dealloc(void *mem) {
     // TODO
+
+    // Revisar primero si el ultimo bloque es el que hay que liberar
+
+    // Si no buscar el bloque y hacer que se marque como "libre"
 }
 
-void align() {
-    // TODO
-}
+
 
 int main(void) {
 
-    // BRK -> Me va a tirar la direccion de donde arranca el heap
+    // BRK -> Me va a tirar la direccion de donde arranca el heap (o mejor dicho donde se encuentra el program break pointer)
 
     void *heap = sbrk(0);
-    // La direccion de memoria donde me dejo;
+    // La direccion de memoria donde me dejo (Es el final del heap LOGICO que el kernel me da). Despues pega un salto a otras direcciones
+    // QUe el kernel hace que se extienda el tamaño dle heap.
 
     printf("HEAP: 0x%lx\n", (uintptr_t)heap);
+
+    void *elpepe = alloc(3);
+    printf("Primera reserva: 0x%lx\n", (uintptr_t)elpepe);
+
+    void *colapinto = alloc(16);
+    printf("Segunda reserva: 0x%lx\n", (uintptr_t)colapinto);
+
+
+
 
     return 0;
 
