@@ -36,10 +36,9 @@
 // que esta memoria puede ser accedida mediante una referencia usando punteros. Esto es lo que vamos a intentar "replicar". 
 
 typedef struct memory_block {
-    uint64_t size;               // tamaño de la zona de datos
-    uint16_t is_free;            // flag de libre/ocupado
-    struct memory_block *next;   // siguiente bloque (para encadenar)
-    char *data;                  // comienzo de la memoria de usuario
+    uint64_t size;               // tamaño de la zona de datos - 8 bytes
+    uint16_t is_free;            // flag de libre/ocupado - 2 bytes
+    struct memory_block *next;   // siguiente bloque (para encadenar) - 8 bytes / 4 bytes (depende de la arquictura)
 } memory_block_t;
 
 static memory_block_t *first_block = NULL;
@@ -62,10 +61,10 @@ void *alloc(size_t bytes_to_alloc) {
     
     while (current)
     {
-        if (current->is_free && current->size >= bytes_aligned)
+        if (current->is_free == 1 && current->size >= bytes_aligned)
         {
             current->is_free = 0;
-            return current->data;
+            return (void*)(current + 1);
         }
         current = current->next;        
     }
@@ -93,41 +92,74 @@ void *alloc(size_t bytes_to_alloc) {
     }
     last_block = memory_block;
 
-    return memory_block->data;
+    return (void*)(memory_block + 1);
 
 }
 
 
 // funcion para devolver memoria
-void dealloc(void *mem) {
-    // TODO
+int dealloc(void *ptr) {
+    if (!ptr) return -1;
 
-    // Revisar primero si el ultimo bloque es el que hay que liberar
+    memory_block_t *block = (memory_block_t*)ptr - 1;
 
-    // Si no buscar el bloque y hacer que se marque como "libre"
+    if (block == last_block) {
+        // retroceder el program break 
+        sbrk(- (block->size + sizeof(memory_block_t)));
+
+        if (block == first_block) {
+            first_block = last_block = NULL;
+        } else {
+            memory_block_t *current = first_block;
+            while (current->next != last_block) {
+                current = current->next;
+            }
+            current->next = NULL;
+            last_block = current;
+        }
+        return 0;
+    }
+
+    // marcar como libre
+    block->is_free = 1;
+    return 0;
 }
 
 
 
 int main(void) {
+    printf("== Prueba de mi alloc() ==\n");
 
-    // BRK -> Me va a tirar la direccion de donde arranca el heap (o mejor dicho donde se encuentra el program break pointer)
-
+    // estado inicial del heap
     void *heap = sbrk(0);
-    // La direccion de memoria donde me dejo (Es el final del heap LOGICO que el kernel me da). Despues pega un salto a otras direcciones
-    // QUe el kernel hace que se extienda el tamaño dle heap.
+    printf("HEAP inicial: %p\n", heap);
 
-    printf("HEAP: 0x%lx\n", (uintptr_t)heap);
+    // 1) pido memoria
+    void *p1 = alloc(10);
+    printf("p1 (10 bytes): %p\n", p1);
 
-    void *elpepe = alloc(3);
-    printf("Primera reserva: 0x%lx\n", (uintptr_t)elpepe);
+    void *p2 = alloc(20);
+    printf("p2 (20 bytes): %p\n", p2);
 
-    void *colapinto = alloc(16);
-    printf("Segunda reserva: 0x%lx\n", (uintptr_t)colapinto);
+    void *p3 = alloc(30);
+    printf("p3 (30 bytes): %p\n", p3);
 
+    // 2) liberar memoria 
+    printf("Liberando p2...\n");
+    dealloc(p2);
 
+    // 3) pedir algo mas chico para ver si se vuelve a usar el p2
+    void *p4 = alloc(16);
+    printf("p4 (16 bytes, debería reusar p2): %p\n", p4);
 
+    // 4) liberar todo a la mierda
+    printf("Liberando p1, p3 y p4...\n");
+    dealloc(p1);
+    dealloc(p3);
+    dealloc(p4);
+
+    void *heap_end = sbrk(0);
+    printf("HEAP final: %p\n", heap_end);
 
     return 0;
-
 }
