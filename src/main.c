@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TAMAÑO_PALABRA 8
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                          SEGMENTOS DE MEMORIA DE UN PROCESO                                                //
@@ -36,43 +35,66 @@
 // Por ultimo esta el HEAP que es donde vamos a alojar memoria de manera dinamica con algun allocator como lo es malloc. LO que nos indica
 // que esta memoria puede ser accedida mediante una referencia usando punteros. Esto es lo que vamos a intentar "replicar". 
 
+typedef struct memory_block {
+    uint64_t size;               // tamaño de la zona de datos
+    uint16_t is_free;            // flag de libre/ocupado
+    struct memory_block *next;   // siguiente bloque (para encadenar)
+    char *data;                  // comienzo de la memoria de usuario
+} memory_block_t;
 
-typedef struct header header_t;
-typedef struct content content_t;
+static memory_block_t *first_block = NULL;
+static memory_block_t *last_block = NULL;
 
-typedef struct memory_block memory_block_t;
+// size_t varia segun su tamaño segun la arquitectura que se use: Para 32bits representa 4bytes. Mientras que en 64 vale 8bytes. 
+// ASi que lo conviene usarlo para determinar el tamaño de palabra y asi alinear los bits a un multiplo de ese tamaño de palabra.
+const size_t MACHINE_WORD = sizeof(size_t);
 
-struct header {
-    uint32_t size; // 4 byte
-    uint32_t *next; // 4 byte
-    uint16_t is_free; // 4 byte
-};
-
-struct content {
-    char *data;
-};
-
-struct memory_block {
-    header_t header;
-    content_t content;
-};
-
-int align(size_t num_of_bytes) {
+size_t align(size_t num_of_bytes) {
    
-   return (num_of_bytes + TAMAÑO_PALABRA - 1) & ~(TAMAÑO_PALABRA - 1);
+   return (num_of_bytes + MACHINE_WORD - 1) & ~(MACHINE_WORD - 1);
 }
 
 // funcion para pedir memoria
 void *alloc(size_t bytes_to_alloc) {
-    // TODO
 
-    uint32_t bytes_aligned = align(bytes_to_alloc);
+    uint64_t bytes_aligned = align(bytes_to_alloc);
+    memory_block_t *current = first_block;
+    
+    while (current)
+    {
+        if (current->is_free && current->size >= bytes_aligned)
+        {
+            current->is_free = 0;
+            return current->data;
+        }
+        current = current->next;        
+    }
 
-    void *current = sbrk(0);
+    // Si no encuentra ningun bloque libre que tenga el suficiente tamaño para almacenar la cantidad de bytes entonces
+    // se tiene que agregar uno mas.
 
-    sbrk(bytes_aligned);
+    memory_block_t *memory_block = sbrk(sizeof(memory_block_t) + bytes_aligned);
 
-    return current;
+    if (memory_block == (void*) -1) 
+    {
+        return NULL;
+    }
+
+    // estructura y metadata al bloque de memoria
+    memory_block->is_free = 0;
+    memory_block->next = NULL;
+    memory_block->size = bytes_aligned;
+
+    if (!first_block)
+    {
+        first_block = memory_block;
+    } else {
+        last_block->next = memory_block;
+    }
+    last_block = memory_block;
+
+    return memory_block->data;
+
 }
 
 
