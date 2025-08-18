@@ -7,25 +7,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                          SEGMENTOS DE MEMORIA DE UN PROCESO                                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Primero un poco de contexto, el stack es un estructura de datos estatica con un tamaño definido. 
+// Primero un poco de contexto, el stack es un estructura de datos estatica con un tamaño definido.
 // Las direcciones bajas de memoria a la mas alta:
 
-// TEXT: se le dice le "code segment" o "text segment", es donde se guardan las instrucciones de del programa. 
+// TEXT: se le dice le "code segment" o "text segment", es donde se guardan las instrucciones de del programa.
 // Tiene el codigo ejecutable, las funciones, declaraciones y demas cuestiones para que el programa funque.
 // Este pedazo de memoria es de solo lectura y se comparte con demas partes del programa.
 
-// DATA SEGMENT: luego del text segment le sigue el data segment el cual se divide en 2, "initialized data segment" (.data) y 
+// DATA SEGMENT: luego del text segment le sigue el data segment el cual se divide en 2, "initialized data segment" (.data) y
 // "uninitilized data" (.bss)
 
 //// el primer segmento almacena las variables globales y estaticas inicializadas (que tiene un valor explicito asignados).
 //// Osea que cuando inicializamos una variable, se esta reservando y posteriormente asignando en esta parte de la memoria. (tiempo de compilacion).
 
-//// Luego tenemos el otro segmento que no esta inicializada de manera explicita variables globales y estaticas. Ejemplo: 
+//// Luego tenemos el otro segmento que no esta inicializada de manera explicita variables globales y estaticas. Ejemplo:
 //// int global; ó int static elpepe;
 
 // STACK: El STACK es un segmento de memoria que esta en las direcciones mas alta de memoria y que va a crecer mientras se hacen llamada de funciones.
@@ -33,133 +32,163 @@
 // los parametros de la funcion si los tiene.
 
 // Por ultimo esta el HEAP que es donde vamos a alojar memoria de manera dinamica con algun allocator como lo es malloc. LO que nos indica
-// que esta memoria puede ser accedida mediante una referencia usando punteros. Esto es lo que vamos a intentar "replicar". 
+// que esta memoria puede ser accedida mediante una referencia usando punteros. Esto es lo que vamos a intentar "replicar".
 
-typedef struct memory_block {
-    uint64_t size;               // tamaño de la zona de datos - 8 bytes
-    uint16_t is_free;            // flag de libre/ocupado - 2 bytes
-    struct memory_block *next;   // siguiente bloque (para encadenar) - 8 bytes / 4 bytes (depende de la arquictura)
-} memory_block_t;
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static memory_block_t *first_block = NULL;
-static memory_block_t *last_block = NULL;
-
-// size_t varia segun su tamaño segun la arquitectura que se use: Para 32bits representa 4bytes. Mientras que en 64 vale 8bytes. 
+// size_t varia segun su tamaño segun la arquitectura que se use: Para 32bits representa 4bytes. Mientras que en 64 vale 8bytes.
 // ASi que lo conviene usarlo para determinar el tamaño de palabra y asi alinear los bits a un multiplo de ese tamaño de palabra.
 const size_t MACHINE_WORD = sizeof(size_t);
 
-size_t align(size_t num_of_bytes) {
-   
-   return (num_of_bytes + MACHINE_WORD - 1) & ~(MACHINE_WORD - 1);
+typedef struct memory_block
+{
+    uint64_t size;             // tamaño de la zona de datos - 8 bytes
+    uint16_t is_free;          // flag de libre/ocupado - 2 bytes
+    struct memory_block *next; // siguiente bloque (para encadenar) - 8 bytes / 4 bytes (depende de la arquictura)
+} memory_block_t;
+
+
+typedef struct allocator allocator_t;
+
+
+struct allocator
+{
+    void *(*alloc)(allocator_t *, size_t);
+    int (*dealloc)(allocator_t *, void *);
+    void *state;
+} ;
+
+typedef struct heap_data
+{
+    memory_block_t *first;
+    memory_block_t *last;
+} heap_data_t;
+
+// BUMP ALLOCATOR IMPLEMENTATION
+
+size_t align(size_t num_of_bytes)
+{
+
+    return (num_of_bytes + MACHINE_WORD - 1) & ~(MACHINE_WORD - 1);
 }
 
-// funcion para pedir memoria
-void *alloc(size_t bytes_to_alloc) {
+void *bump_alloc(allocator_t *a, size_t bytes_to_alloc)
+{
+    heap_data_t *data = (heap_data_t *)a->state;
 
     uint64_t bytes_aligned = align(bytes_to_alloc);
-    memory_block_t *current = first_block;
-    
+
+    memory_block_t *current = data->first;
+
     while (current)
     {
-        if (current->is_free == 1 && current->size >= bytes_aligned)
+        if (current->is_free && current->size >= bytes_aligned)
         {
             current->is_free = 0;
-            return (void*)(current + 1);
+            return (void *)(current + 1);
         }
-        current = current->next;        
+        current = current->next;
     }
 
-    // Si no encuentra ningun bloque libre que tenga el suficiente tamaño para almacenar la cantidad de bytes entonces
-    // se tiene que agregar uno mas.
-
-    memory_block_t *memory_block = sbrk(sizeof(memory_block_t) + bytes_aligned);
-
-    if (memory_block == (void*) -1) 
-    {
+    memory_block_t *block = sbrk(sizeof(memory_block_t) + bytes_aligned);
+    if (block == (void *)-1)
         return NULL;
-    }
 
-    // estructura y metadata al bloque de memoria
-    memory_block->is_free = 0;
-    memory_block->next = NULL;
-    memory_block->size = bytes_aligned;
+    block->size = bytes_aligned;
 
-    if (!first_block)
+    block->is_free = 0;
+    block->next = NULL;
+
+    if (!data->first)
     {
-        first_block = memory_block;
-    } else {
-        last_block->next = memory_block;
+        data->first = block;
     }
-    last_block = memory_block;
+    else
+    {
+        data->last->next = block;
+    }
 
-    return (void*)(memory_block + 1);
-
+    data->last = block;
+    return (void *)(block + 1);
 }
 
+int bump_dealloc(allocator_t *a, void *ptr)
+{
+    if (!ptr) {
+        return -1;
+    }
 
-// funcion para devolver memoria
-int dealloc(void *ptr) {
-    if (!ptr) return -1;
+    heap_data_t *data = (heap_data_t *)a->state;
 
-    memory_block_t *block = (memory_block_t*)ptr - 1;
+    memory_block_t *block = (memory_block_t *)ptr - 1;
 
-    if (block == last_block) {
-        // retroceder el program break 
-        sbrk(- (block->size + sizeof(memory_block_t)));
-
-        if (block == first_block) {
-            first_block = last_block = NULL;
-        } else {
-            memory_block_t *current = first_block;
-            while (current->next != last_block) {
-                current = current->next;
+    if (block == data->last)
+    {
+        sbrk(-(block->size + sizeof(memory_block_t)));
+        if (block == data->first)
+        {
+            data->first = data->last = NULL;
+        }
+        else
+        {
+            memory_block_t *curr = data->first;
+            while (curr->next != data->last)
+            {
+                curr = curr->next;
             }
-            current->next = NULL;
-            last_block = current;
+            curr->next = NULL;
+            data->last = curr;
         }
         return 0;
     }
 
-    // marcar como libre
     block->is_free = 1;
     return 0;
 }
 
+// Funcion para inicilizar el bump_allocator. 
+allocator_t bump_allocator()
+{
+    allocator_t a;
+    heap_data_t *data = sbrk(sizeof(heap_data_t));
+    
+    if (data == (void*)-1) {
+        perror("sbrk failed");
+        exit(EXIT_FAILURE);
+    }  
 
+    data->first = data->last = NULL;
+    a.alloc = bump_alloc;
+    a.dealloc = bump_dealloc;
+    a.state = data;
+    return a;
+}
 
-int main(void) {
-    printf("== Prueba de mi alloc() ==\n");
+int main(void)
+{
+    allocator_t my_alloc = bump_allocator();
 
-    // estado inicial del heap
-    void *heap = sbrk(0);
-    printf("HEAP inicial: %p\n", heap);
+    printf("HEAP INICIAL: 0x%lx\n", (uintptr_t)my_alloc.alloc(&my_alloc, 0));
 
-    // 1) pido memoria
-    void *p1 = alloc(10);
-    printf("p1 (10 bytes): %p\n", p1);
+    void *p1 = my_alloc.alloc(&my_alloc, 10);
+    printf("p1(10bytes): 0x%lx\n", (uintptr_t) p1);
+    void *p2 = my_alloc.alloc(&my_alloc, 20);
+    printf("p2 (20 bytes): 0x%lx\n", (uintptr_t) p2);
 
-    void *p2 = alloc(20);
-    printf("p2 (20 bytes): %p\n", p2);
+    int result = my_alloc.dealloc(&my_alloc, p2);
+    
+    if (result == 0)
+    {
+        printf("p2 ha sido liberado (marcado como libre)\n");
+    } else {
+        printf("p2 no se ha podido liberar\n");
+    }
+    
+    void *p3 = my_alloc.alloc(&my_alloc, 16);
+    printf("p3(16bytes): 0x%lx\n", (uintptr_t) p3);
 
-    void *p3 = alloc(30);
-    printf("p3 (30 bytes): %p\n", p3);
-
-    // 2) liberar memoria 
-    printf("Liberando p2...\n");
-    dealloc(p2);
-
-    // 3) pedir algo mas chico para ver si se vuelve a usar el p2
-    void *p4 = alloc(16);
-    printf("p4 (16 bytes, debería reusar p2): %p\n", p4);
-
-    // 4) liberar todo a la mierda
-    printf("Liberando p1, p3 y p4...\n");
-    dealloc(p1);
-    dealloc(p3);
-    dealloc(p4);
-
-    void *heap_end = sbrk(0);
-    printf("HEAP final: %p\n", heap_end);
+    my_alloc.dealloc(&my_alloc, p1);
+    my_alloc.dealloc(&my_alloc, p3);
 
     return 0;
 }

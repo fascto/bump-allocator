@@ -14,7 +14,7 @@
 # -g compila con la informacion de debug
 
 CC = gcc
-CFLAGS = -Wall -Wextra -Iinclude -std=c99 -O0 -g
+CFLAGS = -Wall -Wextra -Iinclude -std=c99 -O3 -g
 SRC_DIR = src
 TARGET_DIR = target
 
