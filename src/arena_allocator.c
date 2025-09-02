@@ -24,6 +24,10 @@ void *arena_alloc(arena_t* arena, size_t bytes_to_alloc){
 }
 
 
+void arena_reset(arena_t* arena) {
+    arena->offset = 0;
+}
+
 
 int main(int argc, char **argv) {
     
@@ -37,7 +41,13 @@ int main(int argc, char **argv) {
         printf("No se pudo asignar memoria\n");
         return 1;
     }
-    
+    strcpy(string, "Hola Mundo\n");
+
+    printf("Usando la memoria: %s", string);
+
+    arena_reset(&a);
+
+    return 0;
 
 
 }
