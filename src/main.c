@@ -43,31 +43,31 @@
 #include "allocator.h"  
 
 
-int main(void)
-{
-    allocator_t my_alloc = bump_allocator();
+// int main(void)
+// {
+//     allocator_t my_alloc = bump_allocator();
 
-    printf("HEAP INICIAL: 0x%lx\n", (uintptr_t)my_alloc.alloc(&my_alloc, 0));
+//     printf("HEAP INICIAL: 0x%lx\n", (uintptr_t)my_alloc.alloc(&my_alloc, 0));
 
-    void *p1 = my_alloc.alloc(&my_alloc, 10);
-    printf("p1(10bytes): 0x%lx\n", (uintptr_t) p1);
-    void *p2 = my_alloc.alloc(&my_alloc, 20);
-    printf("p2 (20 bytes): 0x%lx\n", (uintptr_t) p2);
+//     void *p1 = my_alloc.alloc(&my_alloc, 10);
+//     printf("p1(10bytes): 0x%lx\n", (uintptr_t) p1);
+//     void *p2 = my_alloc.alloc(&my_alloc, 20);
+//     printf("p2 (20 bytes): 0x%lx\n", (uintptr_t) p2);
 
-    int result = my_alloc.dealloc(&my_alloc, p2);
+//     int result = my_alloc.dealloc(&my_alloc, p2);
     
-    if (result == 0)
-    {
-        printf("p2 ha sido liberado (marcado como libre)\n");
-    } else {
-        printf("p2 no se ha podido liberar\n");
-    }
+//     if (result == 0)
+//     {
+//         printf("p2 ha sido liberado (marcado como libre)\n");
+//     } else {
+//         printf("p2 no se ha podido liberar\n");
+//     }
     
-    void *p3 = my_alloc.alloc(&my_alloc, 16);
-    printf("p3(16bytes): 0x%lx\n", (uintptr_t) p3);
+//     void *p3 = my_alloc.alloc(&my_alloc, 16);
+//     printf("p3(16bytes): 0x%lx\n", (uintptr_t) p3);
 
-    my_alloc.dealloc(&my_alloc, p1);
-    my_alloc.dealloc(&my_alloc, p3);
+//     my_alloc.dealloc(&my_alloc, p1);
+//     my_alloc.dealloc(&my_alloc, p3);
 
-    return 0;
-}
+//     return 0;
+// }

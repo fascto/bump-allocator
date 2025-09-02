@@ -43,6 +43,7 @@ void *bump_alloc(allocator_t *a, size_t bytes_to_alloc)
     return (void *)(block + 1);
 }
 
+// Funcion para liberar y marcar como libre a la memoria  
 int bump_dealloc(allocator_t *a, void *ptr)
 {
     if (!ptr) {

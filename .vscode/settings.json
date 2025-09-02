@@ -12,6 +12,8 @@
         "span": "c",
         "bump_allocator.h": "c",
         "cstdlib": "c",
-        "stdlib.h": "c"
-    }
+        "stdlib.h": "c",
+        "vector": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }
