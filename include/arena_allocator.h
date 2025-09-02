@@ -12,17 +12,20 @@
 
 #include "allocator.h"
 
-void *arena_alloc(allocator_t *a, size_t bytes_to_alloc);
-
-int arena_dealloc(allocator_t *a, void *ptr);
-
-allocator_t arena_allocator();
-
 typedef struct 
 {
     char* buffer;
     size_t capacity;
     size_t offset;
-} arena;
+} arena_t;
+
+
+void *arena_alloc(arena_t* arena, size_t bytes_to_alloc);
+
+void arena_dealloc(arena_t* arena);
+
+void arena_reset(arena_t* arena);
+
+void arena_allocator(arena_t* arena, size_t capacity);
 
 #endif
