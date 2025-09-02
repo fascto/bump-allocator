@@ -23,6 +23,11 @@ void *arena_alloc(arena_t* arena, size_t bytes_to_alloc){
     return (void*)data; 
 }
 
+void arena_dealloc(arena_t* arena) {
+    arena->capacity = 0;
+    arena->offset = 0;
+    free(arena->buffer);
+}
 
 void arena_reset(arena_t* arena) {
     arena->offset = 0;
@@ -46,6 +51,8 @@ int main(int argc, char **argv) {
     printf("Usando la memoria: %s", string);
 
     arena_reset(&a);
+
+    arena_dealloc(&a);
 
     return 0;
 
